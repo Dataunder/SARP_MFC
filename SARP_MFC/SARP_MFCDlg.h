@@ -58,7 +58,6 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	HANDLE SendThread;
-	HANDLE RecThread;
 	afx_msg void OnBnClickedGetinfBut();
 	CComboBox dev_inf;
 	afx_msg void GetLocalDeviceInf();
