@@ -24,7 +24,7 @@ pcap_if_t* Dev, * allDevs;
 pcap_t* currentOpenDev;
 CString str;
 PIP_ADAPTER_INFO pAdapter = 0;
-PIP_ADAPTER_INFO currentSlectedAdapter = 0;
+PIP_ADAPTER_INFO currentSelectedAdapter = 0;
 ULONG uBuf = 0;
 DWORD dwRet;
 
@@ -140,7 +140,6 @@ BOOL CSARPMFCDlg::OnInitDialog()
 		}
 	}
 	SendThread = NULL;
-	RecThread = NULL;
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -215,10 +214,10 @@ void CSARPMFCDlg::OnBnClickedGetinfBut()
 	// TODO: 在此添加控件通知处理程序代码
 	CString selectedItem;
 	dev_inf.GetLBText(dev_inf.GetCurSel(), selectedItem);
-	currentSlectedAdapter = pAdapter;
-	while (currentSlectedAdapter->Description != selectedItem)
+	currentSelectedAdapter = pAdapter;
+	while (currentSelectedAdapter->Description != selectedItem)
 	{
-		currentSlectedAdapter = currentSlectedAdapter->Next;
+		currentSelectedAdapter = currentSelectedAdapter->Next;
 	}
 
 
@@ -228,14 +227,14 @@ void CSARPMFCDlg::OnBnClickedGetinfBut()
 
 void CSARPMFCDlg::GetLocalDeviceInf()
 {
-	SRC_IP.SetWindowTextA(currentSlectedAdapter->IpAddressList.IpAddress.String);
+	SRC_IP.SetWindowTextA(currentSelectedAdapter->IpAddressList.IpAddress.String);
 	str.Format("%02x-%02x-%02x-%02x-%02x-%02x",
-		currentSlectedAdapter->Address[0],
-		currentSlectedAdapter->Address[1],
-		currentSlectedAdapter->Address[2],
-		currentSlectedAdapter->Address[3],
-		currentSlectedAdapter->Address[4],
-		currentSlectedAdapter->Address[5]
+		currentSelectedAdapter->Address[0],
+		currentSelectedAdapter->Address[1],
+		currentSelectedAdapter->Address[2],
+		currentSelectedAdapter->Address[3],
+		currentSelectedAdapter->Address[4],
+		currentSelectedAdapter->Address[5]
 	);
 	SRC_MAC.SetWindowTextA(str);
 
@@ -251,7 +250,7 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 	char errBuf[PCAP_ERRBUF_SIZE];
 	pcap_findalldevs(&allDevs, errBuf);
 
-	CString a = currentSlectedAdapter->AdapterName;
+	CString a = currentSelectedAdapter->AdapterName;
 
 	CString subfromIpHelper = a.Mid(a.ReverseFind('{') + 1, 4);
 	for (Dev = allDevs; Dev; Dev = Dev->next) 
@@ -288,8 +287,8 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 
 	for (int i = 0; i < 6; i++)
 	{
-		ap.Src_Mac[i]= currentSlectedAdapter->Address[i];
-		ap.src_mac[i]= currentSlectedAdapter->Address[i];
+		ap.Src_Mac[i]= currentSelectedAdapter->Address[i];
+		ap.src_mac[i]= currentSelectedAdapter->Address[i];
 	}
 	
 
@@ -309,7 +308,7 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 	ap.des_ip[2] = atoi((LPCTSTR)sub2);
 	ap.des_ip[3] = atoi((LPCTSTR)sub3);
 
-	CString src_ip=currentSlectedAdapter->IpAddressList.IpAddress.String;
+	CString src_ip=currentSelectedAdapter->IpAddressList.IpAddress.String;
 
 	TransCS2char(ap.src_ip, src_ip);
 
@@ -350,7 +349,7 @@ void TransCS2char(u_char ip[], CString tem)
 void CSARPMFCDlg::OnBnClickedSendBut()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	if (currentSlectedAdapter == 0)
+	if (currentSelectedAdapter == 0)
 	{
 		MessageBox("请先于左侧框内选择设备！");
 	}

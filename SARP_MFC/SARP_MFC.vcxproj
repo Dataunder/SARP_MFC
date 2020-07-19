@@ -210,7 +210,6 @@
     <None Include="res\SARPMFC.rc2" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="..\..\..\..\Pictures\1.bmp" />
     <Image Include="res\1.bmp" />
     <Image Include="res\bitmap1.bmp" />
     <Image Include="res\bitmap2.bmp" />
