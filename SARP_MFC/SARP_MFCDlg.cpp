@@ -320,7 +320,10 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 	if (pcap_sendpacket(currentOpenDev, sendbuf, sizeof(sendbuf))==0)
 	{
 		cdlg->SEND_INF.SetWindowTextA("发送成功！");
+		return 1;
 	}
+
+	return 0;
 
 }
 
@@ -351,17 +354,14 @@ void CSARPMFCDlg::OnBnClickedSendBut()
 	// TODO: 在此添加控件通知处理程序代码
 	if (currentSelectedAdapter == 0)
 	{
-		MessageBox("请先于左侧框内选择设备！");
+		MessageBox("请先选择设备");
 	}
-	else {
+	else
+	{
 		if (SendThread == NULL)
 		{
 			SendThread = CreateThread(NULL, 0, SendArp, this, 0, NULL);
+			SendThread = NULL;
 		}
-		else 
-		{
-			ResumeThread(SendThread);
-		}
-
 	}
 }
