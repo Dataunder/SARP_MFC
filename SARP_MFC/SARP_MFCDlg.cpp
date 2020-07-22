@@ -23,10 +23,11 @@
 pcap_if_t* Dev, * allDevs;
 pcap_t* currentOpenDev;
 CString str;
+PIP_ADAPTER_INFO pAdapterInf = 0;
 PIP_ADAPTER_INFO pAdapter = 0;
-PIP_ADAPTER_INFO currentSelectedAdapter = 0;
+PIP_ADAPTER_INFO SelectedAdapter = 0;
 ULONG uBuf = 0;
-DWORD dwRet;
+DWORD opinf;
 
 void TransCS2char(u_char ip[], CString tem);
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
@@ -129,14 +130,19 @@ BOOL CSARPMFCDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
-	dwRet = GetAdaptersInfo(pAdapter, &uBuf);
-	if (dwRet == ERROR_BUFFER_OVERFLOW)
+	opinf = GetAdaptersInfo(pAdapter, &uBuf);
+	if (opinf == ERROR_BUFFER_OVERFLOW)
 	{
-		pAdapter = (PIP_ADAPTER_INFO)GlobalAlloc(GPTR, uBuf);
-		dwRet = GetAdaptersInfo(pAdapter, &uBuf);
-		if (dwRet == ERROR_SUCCESS) {
-			dev_inf.AddString(pAdapter->Description);
-			dev_inf.AddString(pAdapter->Next->Description);
+		pAdapter = (PIP_ADAPTER_INFO)GlobalAlloc(GPTR, uBuf);//获取本地所有适配器并赋值
+		pAdapterInf = pAdapter;	//将适配器信息赋值，防止接下来出现错误
+		opinf = GetAdaptersInfo(pAdapter, &uBuf);	//获取本地网络信息，并赋值返回值
+		if (opinf == ERROR_SUCCESS) 
+		{
+			while (pAdapterInf)//当适配器信息不空
+			{
+				dev_inf.AddString(pAdapterInf->Description);	//添加适配器信息至ComboBox中
+				pAdapterInf = pAdapterInf->Next;	//继续下一个适配器
+			}
 		}
 	}
 	SendThread = NULL;
@@ -212,12 +218,13 @@ HCURSOR CSARPMFCDlg::OnQueryDragIcon()
 void CSARPMFCDlg::OnBnClickedGetinfBut()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	CString selectedItem;
-	dev_inf.GetLBText(dev_inf.GetCurSel(), selectedItem);
-	currentSelectedAdapter = pAdapter;
-	while (currentSelectedAdapter->Description != selectedItem)
+	CString selectedItem;		//用于存储当前选择的适配器名称
+	dev_inf.GetLBText(dev_inf.GetCurSel(), selectedItem);	//赋值
+
+	SelectedAdapter = pAdapter;			//定义选择的适配器为所有适配器信息
+	while (SelectedAdapter->Description != selectedItem)	//执行循环，若当前适配器信息与所选择不符，则继续循环
 	{
-		currentSelectedAdapter = currentSelectedAdapter->Next;
+		SelectedAdapter = SelectedAdapter->Next;	
 	}
 
 
@@ -227,18 +234,19 @@ void CSARPMFCDlg::OnBnClickedGetinfBut()
 
 void CSARPMFCDlg::GetLocalDeviceInf()
 {
-	SRC_IP.SetWindowTextA(currentSelectedAdapter->IpAddressList.IpAddress.String);
+	SRC_IP.SetWindowTextA(SelectedAdapter->IpAddressList.IpAddress.String);			//将ID为SRC_IP的控件设置文本为获取的适配器中的信息
 	str.Format("%02x-%02x-%02x-%02x-%02x-%02x",
-		currentSelectedAdapter->Address[0],
-		currentSelectedAdapter->Address[1],
-		currentSelectedAdapter->Address[2],
-		currentSelectedAdapter->Address[3],
-		currentSelectedAdapter->Address[4],
-		currentSelectedAdapter->Address[5]
+		SelectedAdapter->Address[0],
+		SelectedAdapter->Address[1],
+		SelectedAdapter->Address[2],
+		SelectedAdapter->Address[3],
+		SelectedAdapter->Address[4],
+		SelectedAdapter->Address[5]
 	);
-	SRC_MAC.SetWindowTextA(str);
+	SRC_MAC.SetWindowTextA(str);	//将ID为SRC_MAC的控件设置文本为获取的适配器中的mac信息
 
-	DES_MAC.SetWindowTextA("00-00-00-00-00-00");
+	DES_MAC.SetWindowTextA("00-00-00-00-00-00");	//将目的MAC设置为0x00
+
 
 }
 
@@ -247,17 +255,21 @@ void CSARPMFCDlg::GetLocalDeviceInf()
 DWORD WINAPI SendArp(LPVOID lpParameter)
 {
 	CSARPMFCDlg* cdlg = (CSARPMFCDlg*)lpParameter;
+
 	char errBuf[PCAP_ERRBUF_SIZE];
+
 	pcap_findalldevs(&allDevs, errBuf);
 
-	CString a = currentSelectedAdapter->AdapterName;
+	CString a = SelectedAdapter->AdapterName;	//将IP Helper的适配器名称存储在a字符串中
 
-	CString subfromIpHelper = a.Mid(a.ReverseFind('{') + 1, 4);
+	CString subfromIpHelper = a.Mid(a.ReverseFind('{') + 1, 4);		//截取最后一个'{'出现后面4位字符串作为象征量
+
+	//遍历打开的设备寻找与IP Helper中一致的设备
 	for (Dev = allDevs; Dev; Dev = Dev->next) 
 	{
 		a = Dev->name;
-		CString subfromWinpcap = a.Mid(a.ReverseFind('{') + 1, 4);
-		if (subfromWinpcap == subfromIpHelper) 
+		CString subfromWinpcap = a.Mid(a.ReverseFind('{') + 1, 4);	//截取最后一个'{'出现后面4位字符串作为象征量
+		if (subfromWinpcap == subfromIpHelper)	//如果两个获取得设备象征量相同，说明打开的设备一致
 		{
 			break;
 		}
@@ -270,8 +282,9 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 
 	
 	ArpPacket ap;
-	u_char sendbuf[60];
+	u_char sendbuf[60];			//发送的数据包
 
+	//基本内容的赋值
 	ap.EthType = htons(ETH_ARP);
 	ap.HardwareType = htons(ARP_HARDWARE);
 	ap.ProtocolType = htons(ETH_IP);
@@ -279,6 +292,7 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 	ap.ProtocolLen = 4;
 	ap.OpCode = htons(ARP_REQUEST);
 
+	//将物理层的MAC设为0XFF表示广播，将数据链路层的设为0X00表示未知
 	for (int i = 0; i < 6; i++)
 	{
 		ap.Des_Mac[i] = 0xff;
@@ -287,11 +301,11 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 
 	for (int i = 0; i < 6; i++)
 	{
-		ap.Src_Mac[i]= currentSelectedAdapter->Address[i];
-		ap.src_mac[i]= currentSelectedAdapter->Address[i];
+		ap.Src_Mac[i]= SelectedAdapter->Address[i];
+		ap.src_mac[i]= SelectedAdapter->Address[i];
 	}
 	
-
+/*
 	cdlg->DES_IP.GetWindowText(a);
 
 	int temp1 = a.Find('.');
@@ -307,19 +321,34 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 	ap.des_ip[1] = atoi((LPCTSTR)sub1);
 	ap.des_ip[2] = atoi((LPCTSTR)sub2);
 	ap.des_ip[3] = atoi((LPCTSTR)sub3);
+*/
+	
+	CString tem_d;
 
-	CString src_ip=currentSelectedAdapter->IpAddressList.IpAddress.String;
+	//获取DES_IP框中的文本信息并将其写入定义的字符串中
+	cdlg->DES_IP.GetWindowText(tem_d);
 
+	//调用函数转化格式
+	TransCS2char(ap.des_ip, tem_d);
+
+	//CString src_ip=SelectedAdapter->IpAddressList.IpAddress.String;
+	CString src_ip;
+
+	//获取SRC_IP框中的文本信息并将其写入定义的字符串中
+	cdlg->SRC_IP.GetWindowText(src_ip);
+
+	//调用函数转化格式
 	TransCS2char(ap.src_ip, src_ip);
 
 	memset(ap.data, 0, 18);
 
+	//将ap结构体赋值给发送报文字符串
 	memset(&sendbuf, 0, sizeof(sendbuf));
 	memcpy(&sendbuf, (unsigned char*)&ap, sizeof(ap));
 
 	if (pcap_sendpacket(currentOpenDev, sendbuf, sizeof(sendbuf))==0)
 	{
-		cdlg->SEND_INF.SetWindowTextA("发送成功！");
+		cdlg->SEND_INF.SetWindowTextA("发送成功！");//发送报文成功时，在指定的编辑框内进行反馈
 		return 1;
 	}
 
@@ -333,18 +362,18 @@ DWORD WINAPI SendArp(LPVOID lpParameter)
 void TransCS2char(u_char ip[], CString tem)
 {
 	CString sub[4];
-	int temp1 = tem.Find('.');
-	int temp2 = tem.Find('.', temp1 + 1);
-	int temp3 = tem.Find('.', temp2 + 1);
+	int temp1 = tem.Find('.');	//找到字符串中第一个出现'.'的索引	
+	int temp2 = tem.Find('.', temp1 + 1);	//找到字符串中第二个出现'.'的索引
+	int temp3 = tem.Find('.', temp2 + 1);	//找到字符串中第三个出现'.'的索引
 
-	sub[0] = tem.Mid(0, temp1);
-	sub[1] = tem.Mid(temp1 + 1, temp2 - temp1 - 1);
-	sub[2] = tem.Mid(temp2 + 1, temp3 - temp2 - 1);
-	sub[3] = tem.Mid(tem.ReverseFind('.') + 1, 3);
+	sub[0] = tem.Mid(0, temp1);		//将IP字符串第一个'.'前的字符分离
+	sub[1] = tem.Mid(temp1 + 1, temp2 - temp1 - 1);	//将IP字符串第二个'.'前的字符分离
+	sub[2] = tem.Mid(temp2 + 1, temp3 - temp2 - 1);	//将IP字符串第三个'.'前的字符分离
+	sub[3] = tem.Mid(tem.ReverseFind('.') + 1, 3);	//将IP字符串第三个'.'后的字符分离
 
 	for (int i = 0; i < 4; i++)
 	{
-		ip[i]= atoi((LPCTSTR)sub[i]);
+		ip[i]= atoi((LPCTSTR)sub[i]);//循环赋值语句
 	}
 
 }
@@ -352,7 +381,7 @@ void TransCS2char(u_char ip[], CString tem)
 void CSARPMFCDlg::OnBnClickedSendBut()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	if (currentSelectedAdapter == 0)
+	if (SelectedAdapter == 0)
 	{
 		MessageBox("请先选择设备");
 	}
